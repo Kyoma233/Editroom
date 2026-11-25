@@ -1,0 +1,122 @@
+name: Build macOS DMG
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  APP: Editroom
+
+jobs:
+  build:
+    # Editroom needs the macOS 26 SDK (Foundation Models, macOS 26 APIs), so Xcode 26 is required.
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          sw_vers
+          uname -m
+
+      - name: Read version
+        id: version
+        run: |
+          settings=$(xcodebuild -project "$APP.xcodeproj" -scheme "$APP" -configuration Release -showBuildSettings 2>/dev/null)
+          VERSION=$(printf '%s\n' "$settings" | awk -F' = ' '/ MARKETING_VERSION = /{print $2; exit}')
+          BUILD=$(printf '%s\n' "$settings" | awk -F' = ' '/ CURRENT_PROJECT_VERSION = /{print $2; exit}')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "==> $APP $VERSION ($BUILD)"
+
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -project "$APP.xcodeproj" -scheme "$APP"
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -project "$APP.xcodeproj" -scheme "$APP" -configuration Release \
+            -destination "generic/platform=macOS" \
+            -archivePath build/$APP.xcarchive -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            -quiet
+
+      - name: Ad-hoc sign the app
+        run: |
+          APP_PATH="build/$APP.xcarchive/Products/Applications/$APP.app"
+          test -d "$APP_PATH"
+          # Apple Silicon refuses to launch a completely unsigned bundle: sign ad-hoc, inner binaries first.
+          /usr/bin/codesign --force --sign - --timestamp=none "$APP_PATH/Contents/MacOS/ffmpeg"
+          /usr/bin/codesign --force --deep --sign - "$APP_PATH"
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          echo "$APP_PATH" > build/app-path.txt
+
+      - name: Build DMG
+        run: |
+          APP_PATH=$(cat build/app-path.txt)
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p dist
+          DMG="dist/$APP-$VERSION.dmg"
+          STAGE="$PWD/build/dmg"
+          mkdir -p "$STAGE"
+          cp -R "$APP_PATH" "$STAGE/"
+
+          # Finder background: one TIFF holding both resolutions stays sharp on Retina displays.
+          sips -s dpiWidth 72 -s dpiHeight 72 scripts/dmg/background.png --out build/background.png >/dev/null
+          sips -s dpiWidth 144 -s dpiHeight 144 scripts/dmg/background@2x.png --out build/background@2x.png >/dev/null
+          tiffutil -cathidpicheck build/background.png build/background@2x.png -out build/background.tiff >/dev/null
+
+          brew install create-dmg
+          set +e
+          create-dmg \
+            --volname "$APP" \
+            --background "$PWD/build/background.tiff" \
+            --window-pos 200 120 --window-size 600 412 \
+            --icon-size 148 --text-size 13 \
+            --icon "$APP.app" 160 180 --hide-extension "$APP.app" \
+            --app-drop-link 440 180 \
+            --no-internet-enable \
+            "$DMG" "$STAGE"
+          status=$?
+          set -e
+          if [ $status -ne 0 ] || [ ! -f "$DMG" ]; then
+            echo "create-dmg failed ($status), falling back to hdiutil"
+            rm -f "$DMG"
+            ln -sfn /Applications "$STAGE/Applications"
+            hdiutil create -volname "$APP" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+          fi
+          ls -lh "$DMG"
+          shasum -a 256 "$DMG" | tee "dist/$APP-$VERSION.dmg.sha256"
+
+      - name: Smoke test the app
+        run: |
+          APP_PATH="build/$APP.xcarchive/Products/Applications/$APP.app"
+          /usr/bin/codesign -dv --verbose=4 "$APP_PATH" 2>&1 | head -20
+          otool -L "$APP_PATH/Contents/MacOS/$APP" | head -10
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP }}-dmg
+          path: |
+            dist/*.dmg
+            dist/*.sha256
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DMG="dist/$APP-$VERSION.dmg"
+          gh release create "${{ github.ref_name }}" "$DMG" \
+            --repo "${{ github.repository }}" \
+            --title "$APP ${{ github.ref_name }}" \
+            --notes "Editroom 简体中文版 $VERSION（${{ github.ref_name }}），ad-hoc 签名版本：首次打开请在「系统设置 › 隐私与安全性」中点「仍要打开」。"
