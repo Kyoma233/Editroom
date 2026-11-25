@@ -31,10 +31,13 @@ rm -rf "$WORK"
 mkdir -p "$WORK" "$DIST"
 
 echo "==> Archiving a Release build"
+# SceneTags' frame descriptions need the macOS 27 SDK; older SDKs compile them out.
+VISION_FLAGS=$(zsh "$PROJECT_DIR/scripts/macos27-vision-flags.sh")
 xcodebuild archive -quiet \
   -project "$PROJECT_DIR/$APP.xcodeproj" -scheme "$APP" -configuration Release \
   -destination "generic/platform=macOS" \
   -archivePath "$WORK/$APP.xcarchive" -derivedDataPath "$WORK/DerivedData" \
+  OTHER_SWIFT_FLAGS="$VISION_FLAGS" \
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$IDENTITY" DEVELOPMENT_TEAM="$TEAM"
 
 echo "==> Exporting, signed with Developer ID"

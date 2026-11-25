@@ -305,9 +305,11 @@ final class SceneTagStore: ObservableObject {
         var tags = gather(seen)
         // What Apple Intelligence sees in a few frames: vehicles, expressions, actions and moods that
         // Vision's fixed labels miss, especially in close-ups ("car", "laughter", "jumping").
-        let picks = Array(Set((0..<min(6, max(2, Int(duration / 3)))).map { i in
-            duration * (Double(i) + 0.5) / Double(min(6, max(2, Int(duration / 3))))
-        })).sorted()
+        let pickCount = min(6, max(2, Int(duration / 3)))
+        let pickTimes: [Double] = (0..<pickCount).map { (i: Int) -> Double in
+            duration * (Double(i) + 0.5) / Double(pickCount)
+        }
+        let picks = Array(Set(pickTimes)).sorted()
         var described: [(Double, [String])] = []
         for t in picks {
             guard let image = try? await gen.image(at: CMTime(seconds: t, preferredTimescale: 600)).image,
@@ -319,9 +321,10 @@ final class SceneTagStore: ObservableObject {
     }
 
     /// Up to a dozen keywords for a frame from Apple's on-device model (macOS 27 with Apple Intelligence
-    /// that can see images); nil where it can't.
+    /// that can see images); nil where it can't. The image-aware model API only exists in the macOS 27 SDK,
+    /// so builds made with an older SDK compile this out (see scripts/macos27-vision-flags.sh).
     nonisolated static func describe(_ image: CGImage) async -> [String]? {
-        #if canImport(FoundationModels)
+        #if canImport(FoundationModels) && EDITROOM_VISION_CAPTIONS
         if #available(macOS 27.0, *) {
             let model = SystemLanguageModel.default
             guard model.isAvailable, model.capabilities.contains(.vision) else { return nil }
@@ -330,9 +333,11 @@ final class SceneTagStore: ObservableObject {
                 for the place, vehicles, objects, activity and people's expressions. Plain words, no sentences.
                 """)
             guard let reply = try? await session.respond(to: Prompt { "Keywords for this frame:"; Attachment(image) }) else { return nil }
-            let words = reply.content.lowercased().split(separator: ",").map {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
-            }.filter { !$0.isEmpty && $0.count <= 30 && $0.split(separator: " ").count <= 3 }
+            let words = reply.content.lowercased().split(separator: ",").map { (part: Substring) -> String in
+                part.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+            }.filter { (word: String) -> Bool in
+                !word.isEmpty && word.count <= 30 && word.split(separator: " ").count <= 3
+            }
             return words.isEmpty ? nil : Array(words.prefix(12))
         }
         #endif

@@ -41,11 +41,14 @@ jobs:
 
       - name: Archive
         run: |
+          VISION_FLAGS=$(zsh scripts/macos27-vision-flags.sh)
+          echo "extra Swift flags: ${VISION_FLAGS:-none}"
           xcodebuild archive \
             -project "$APP.xcodeproj" -scheme "$APP" -configuration Release \
             -destination "generic/platform=macOS" \
             -archivePath build/$APP.xcarchive -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            OTHER_SWIFT_FLAGS="$VISION_FLAGS" \
             -quiet
 
       - name: Ad-hoc sign the app
