@@ -114,6 +114,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				zh-Hans,
 				Base,
 			);
 			mainGroup = CA0000000000000000000004;

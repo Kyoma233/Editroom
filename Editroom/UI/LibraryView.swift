@@ -119,7 +119,7 @@ struct LibraryView: View {
                             }
                         }
                         if shown.isEmpty {
-                            Text(search.contains("\"") || search.contains("“") ? "Nothing says \(search)" : "No media matches “\(search)”")
+                            Text(search.contains("\"") || search.contains("“") ? L10n.fmt("Nothing says %@", search) : L10n.fmt("No media matches “%@”", search))
                                 .font(.system(size: 11.5))
                                 .foregroundStyle(Theme.textFaint)
                                 .frame(maxWidth: .infinity)
@@ -179,7 +179,7 @@ private struct SearchField: View {
             Image(systemName: saying ? "text.bubble" : "magnifyingglass")
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(saying ? Theme.text : Theme.textFaint)
-                .help(saying ? "Searching what's said in your clips" : "")
+                .help(saying ? L10n.tr("Searching what's said in your clips") : "")
             TextField("Search", text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 11.5))
@@ -310,7 +310,7 @@ private struct AddButton: View {
                 model.dragPayload = payload
                 return NSItemProvider(object: ("editroom:" + (payload == .text ? "text" : "solid")) as NSString)
             }
-            .help(help)
+            .help(L10n.tr(help))
     }
 }
 
@@ -348,7 +348,7 @@ private struct AssetActions: ViewModifier {
                 if !offline {
                     // Normally automatic (when Editroom comes back to the front); this is for being sure.
                     let ids = picked && pickedCount > 1 ? model.mediaSelection : [asset.id]
-                    Button(ids.count > 1 ? "Reload \(ids.count) Items from Disk" : "Reload from Disk") {
+                    Button(ids.count > 1 ? L10n.fmt("Reload %lld Items from Disk", ids.count) : L10n.tr("Reload from Disk")) {
                         Task { await model.reloadMedia(ids) }
                     }
                 }
@@ -385,8 +385,8 @@ private struct AssetRow: View {
     private var detail: String {
         switch asset.kind {
         case .video: Timecode.short(asset.duration)
-        case .audio: Timecode.short(asset.duration) + "  ·  Audio"
-        case .image: "Photo"
+        case .audio: Timecode.short(asset.duration) + "  ·  " + L10n.tr("Audio")
+        case .image: L10n.tr("Photo")
         }
     }
 
@@ -396,7 +396,7 @@ private struct AssetRow: View {
         if asset.kind != .image { parts.append(Timecode.short(asset.duration)) }
         if asset.width > 0 { parts.append("\(asset.width)×\(asset.height)") }
         if asset.kind == .video, asset.fps > 0 { parts.append(String(format: "%g fps", (asset.fps * 100).rounded() / 100)) }
-        if asset.kind == .audio { parts.append("Audio") }
+        if asset.kind == .audio { parts.append(L10n.tr("Audio")) }
         return parts.joined(separator: " · ")
     }
 
@@ -438,7 +438,7 @@ enum MediaLayout: String, CaseIterable, Identifiable {
     case thumbnails, list
     static let key = "mediaLayout"
     var id: String { rawValue }
-    var name: String { self == .list ? "List" : "Thumbnails" }
+    var name: String { self == .list ? L10n.tr("List") : L10n.tr("Thumbnails") }
 }
 
 /// A Media item as a larger picture, its name underneath: the Thumbnails layout.

@@ -22,7 +22,7 @@ enum MediaDownload {
     static func fetch(_ url: URL, name: String?, sourcePage: String?, licence: String?, into folder: URL,
                       allowFiles: Bool = false) async throws -> URL {
         guard url.scheme == "https" || (allowFiles && url.scheme == "file") else {
-            throw Failure(message: "Use an https link to the audio file.")
+            throw Failure(message: L10n.tr("Use an https link to the audio file."))
         }
         var request = URLRequest(url: url, timeoutInterval: 120)
         request.setValue("Editroom", forHTTPHeaderField: "User-Agent")
@@ -30,19 +30,19 @@ enum MediaDownload {
         do {
             (temp, response) = try await URLSession.shared.download(for: request)
         } catch {
-            throw Failure(message: "Couldn't download it: \(error.localizedDescription)")
+            throw Failure(message: L10n.fmt("Couldn't download it: %@", error.localizedDescription))
         }
         defer { try? FileManager.default.removeItem(at: temp) }
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw Failure(message: "The site answered \(http.statusCode); that link didn't give a file.")
+            throw Failure(message: L10n.fmt("The site answered %lld; that link didn't give a file.", http.statusCode))
         }
         let mime = response.mimeType ?? ""
         if mime.hasPrefix("text/") || mime.contains("html") || mime.contains("json") {
-            throw Failure(message: "That link is a web page, not an audio file. Find the direct link to the file (it usually ends in .mp3 or .wav).")
+            throw Failure(message: L10n.tr("That link is a web page, not an audio file. Find the direct link to the file (it usually ends in .mp3 or .wav)."))
         }
         let size = (try? FileManager.default.attributesOfItem(atPath: temp.path)[.size] as? Int) ?? 0
-        guard size > 0 else { throw Failure(message: "The download was empty.") }
-        guard size <= maxBytes else { throw Failure(message: "That file is over 200 MB, too big for a music track.") }
+        guard size > 0 else { throw Failure(message: L10n.tr("The download was empty.")) }
+        guard size <= maxBytes else { throw Failure(message: L10n.tr("That file is over 200 MB, too big for a music track.")) }
 
         // The file's type: from the link, the server's name for it, or the kind of data.
         var ext = url.pathExtension.lowercased()
