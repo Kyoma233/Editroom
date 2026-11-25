@@ -127,7 +127,13 @@ enum SourceColor: Equatable {
     }
 
     private static func multiply(_ a: Matrix, _ b: Matrix) -> Matrix {
-        (0..<3).map { r in (0..<3).map { c in (0..<3).reduce(0) { $0 + a[r][$1] * b[$1][c] } } }
+        // Spelled out with explicit types: the nested closures alone push the type checker over its
+        // time limit on newer toolchains.
+        (0..<3).map { (r: Int) -> [Double] in
+            (0..<3).map { (c: Int) -> Double in
+                (0..<3).reduce(0.0) { (sum: Double, k: Int) -> Double in sum + a[r][k] * b[k][c] }
+            }
+        }
     }
 
     private static func inverse(_ m: Matrix) -> Matrix {
