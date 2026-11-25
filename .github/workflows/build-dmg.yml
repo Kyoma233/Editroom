@@ -119,7 +119,19 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           DMG="dist/$APP-$VERSION.dmg"
-          gh release create "${{ github.ref_name }}" "$DMG" \
+          # A second copy under a fixed name keeps …/releases/latest/download/Editroom.dmg working.
+          cp "$DMG" "dist/$APP.dmg"
+          {
+            echo "Editroom 简体中文版 $VERSION，由 GitHub Actions 从本仓库源码构建。"
+            echo
+            echo '- 界面、菜单、导出、调色与魔法剪辑均为简体中文'
+            echo '- Apple Silicon，需要 macOS 14 或更高版本'
+            echo '- ad-hoc 签名版本（未经 Apple 公证）：首次打开若被拦截，请在「系统设置 › 隐私与安全性」中点「仍要打开」，或执行 xattr -dr com.apple.quarantine /Applications/Editroom.app'
+            echo
+            echo "下载 Editroom.dmg 即为本版本安装包，Editroom-$VERSION.dmg.sha256 是校验值。"
+          } > build/release-notes.md
+          gh release create "${{ github.ref_name }}" \
+            "$DMG" "dist/$APP.dmg" "dist/$APP-$VERSION.dmg.sha256" \
             --repo "${{ github.repository }}" \
-            --title "$APP ${{ github.ref_name }}" \
-            --notes "Editroom 简体中文版 $VERSION（${{ github.ref_name }}），ad-hoc 签名版本：首次打开请在「系统设置 › 隐私与安全性」中点「仍要打开」。"
+            --title "$APP $VERSION 简体中文版" \
+            --notes-file build/release-notes.md

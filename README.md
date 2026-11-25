@@ -12,16 +12,29 @@ Editroom 仅约 7.5 MB，却拥有你所需的专业剪辑工具——调色、�
 
 ![Editroom](docs/screenshot.webp)
 
-## 安装与运行
+## 下载安装
 
-> **提示**：由于 macOS 应用及签名 DMG 必须在 macOS + Xcode 环境下构建，本分叉仓库当前发布的是已完整本地化的源码，尚未提供预编译的中文版 `.dmg` 安装包。
+- **最新版 dmg**：<https://github.com/Kyoma233/Editroom/releases/latest/download/Editroom.dmg>（Apple Silicon，macOS 14 或更高）
+- 各版本位于 [Releases](https://github.com/Kyoma233/Editroom/releases)，附 SHA-256 校验值。
+
+这个 dmg 由 GitHub Actions 从本仓库源码构建（见 `.github/workflows/build-dmg.yml`），采用 **ad-hoc 签名**，未经 Apple 公证。首次打开时 macOS 会拦截一次：
+
+1. 打开「系统设置 › 隐私与安全性」，在下方点 **仍要打开**；或
+2. 在终端执行 `xattr -dr com.apple.quarantine /Applications/Editroom.app`。
+
+若你希望没有这一步提示，可在自己的 Apple 开发者账号下用 `scripts/release.sh` 重新签名并公证。
+
+## 从源码构建
 
 在装有 Xcode 26 或更高版本的 Apple Silicon Mac 上：
 
 1. 克隆本仓库：`git clone https://github.com/Kyoma233/Editroom.git`
 2. 用 Xcode 打开 `Editroom.xcodeproj`。
 3. 选择 **Editroom** Scheme 并运行（`⌘R`），或在系统首选语言为简体中文时直接启动编译出的应用。
-4. 若需要自行调试更新机制或发布分叉版本 DMG，请先将 `Info.plist` 中的 `SUFeedURL` / `SUPublicEDKey` 及 `scripts/release.sh` 中的开发者团队证书替换为自己的签名信息（本分叉已默认关闭指向原英文仓库的自动更新检查，以免被英文原版覆盖）。
+
+> 用 macOS 27 SDK（Xcode 27）构建时，「画面内容检索」会把画面交给设备端模型描述；用较旧的 SDK 构建时这部分会自动关闭，其余功能不受影响——判断逻辑在 `scripts/macos27-vision-flags.sh`，发布脚本会自动传入所需编译参数。
+
+本分叉已默认关闭指向原英文仓库的自动更新检查（`Info.plist` 的 `SUEnableAutomaticChecks`），以免被英文原版覆盖；`appcast.xml` 为空，不会弹出更新提示。
 
 ## 功能特性
 
@@ -80,14 +93,18 @@ Editroom 仅约 7.5 MB，却拥有你所需的专业剪辑工具——调色、�
 
 ## 打包发布
 
-`scripts/release.sh` 会构建 Release 版本、使用 Developer ID 签名、公证并装订（Notarize & Staple），最后生成 `dist/Editroom-<version>.dmg`。之后可通过 `scripts/publish.sh` 创建 GitHub Release 并更新 Sparkle 源（`appcast.xml`）。
+推送 `v*` 标签（或手动触发）即会运行 `.github/workflows/build-dmg.yml`：在 GitHub 的 macOS 26 运行器上归档 Release、ad-hoc 签名、用 `scripts/dmg` 的背景图打成 `dist/Editroom-<version>.dmg`，再作为 Release 附件发布。
 
-打包脚本依赖以下本地环境配置（均不保存在仓库中）：
+需要签名 + 公证的正规发布，用 `scripts/release.sh`：它会构建 Release 版本、使用 Developer ID 签名、公证并装订（Notarize & Staple），最后生成 `dist/Editroom-<version>.dmg`。之后可通过 `scripts/publish.sh` 创建 GitHub Release 并更新 Sparkle 源（`appcast.xml`）。
+
+本地打包脚本依赖以下环境配置（均不保存在仓库中）：
 
 - 登录钥匙串中的 **Developer ID Application** 证书
 - 通过 `xcrun notarytool store-credentials "editroom-notary" …` 保存的公证凭据
 - 登录钥匙串中的 Sparkle 签名私钥（`generate_keys --account editroom`）
 - [`create-dmg`](https://github.com/create-dmg/create-dmg)（`brew install create-dmg`）与 [`gh`](https://cli.github.com)
+
+> 每次发布前请提升 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`：Sparkle 按 build 号比较版本。
 
 ## 开源协议
 
